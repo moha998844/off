@@ -1,0 +1,93 @@
+name: Fix tag
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      CLANG_URL: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz"
+      CLANG_DIR: "clang-r547379"
+
+    steps:
+      - name: Checkout Kernel Repository
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-23.2
+          fetch-depth: 1
+
+      - name: Clone AnyKernel3
+        run: |
+          git clone --depth=1 -b lord-ak-old https://github.com/moha998844/AnyKernel3.git "$GITHUB_WORKSPACE/AnyKernel3"
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld llvm build-essential bc bison flex libncurses5-dev libssl-dev python3 python3-pip zip device-tree-compiler
+
+      - name: Cache Clang Toolchain
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/${{ env.CLANG_DIR }}
+          key: ${{ runner.os }}-clang-${{ env.CLANG_URL }}
+
+      - name: Download and Extract Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/$CLANG_DIR"
+          wget -qO clang.tar.gz "$CLANG_URL"
+          tar -xzf clang.tar.gz -C "$GITHUB_WORKSPACE/$CLANG_DIR"
+          rm clang.tar.gz
+
+      - name: Set Clang Path
+        run: |
+          echo "$GITHUB_WORKSPACE/clang-r547379/bin" >> $GITHUB_PATH
+      
+      - name: Check Toolchain
+        run: |
+          ld.lld --version
+          clang --version
+
+      - name: Determine Release Tag
+        id: tag
+        run: |
+          GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || true)
+
+          if [ -n "$GIT_TAG" ]; then
+            echo "RELEASE_TAG=$GIT_TAG" >> $GITHUB_ENV
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+          else
+            SHORT_HASH=$(git rev-parse --short=7 HEAD)
+            echo "RELEASE_TAG=$SHORT_HASH" >> $GITHUB_ENV
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          fi
+
+      - name: Build AnyKernel3
+        run: |
+          cd "$GITHUB_WORKSPACE/AnyKernel3"
+          export KROOT="$GITHUB_WORKSPACE"
+          export ZIPPREFIX="${{ env.RELEASE_TAG }}"
+          export BUILD="1"
+          export ANYKERNEL="1"
+          bash ./build.sh
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Release ${{ env.RELEASE_TAG }}
+          body: |
+            Automated AnyKernel3 build for Xiaomi 11T Pro (vili).
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ env.IS_PRERELEASE }}
+          files: |
+            ${{ github.workspace }}/AnyKernel3/*.zip
