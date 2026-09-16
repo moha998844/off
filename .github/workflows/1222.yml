@@ -75,7 +75,7 @@ jobs:
           export ZIPPREFIX="${{ env.RELEASE_TAG }}"
           export BUILD="1"
           export ANYKERNEL="1"
-          bash ./build.sh
+          bash ./m.build.sh
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
