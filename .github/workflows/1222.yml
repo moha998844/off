@@ -12,7 +12,7 @@ jobs:
 
     env:
       CLANG_URL: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz"
-      CLANG_DIR: "clang-r522817"
+      CLANG_DIR: "clang-r547379"
 
     steps:
       - name: Checkout Kernel Repository
@@ -75,7 +75,7 @@ jobs:
           export ZIPPREFIX="${{ env.RELEASE_TAG }}"
           export BUILD="1"
           export ANYKERNEL="1"
-          bash ./m.build.sh
+          bash ./op.sh
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
